@@ -1,23 +1,19 @@
-if Config.Framework == 'ESX' or Config.Framework == 'AUTO' and GetResourceState('es_extended') ~= 'missing' then
-    if not ESX then 
-        ESX = exports["es_extended"]:getSharedObject() 
-        Config.Framework = 'ESX'
-    end
+-- Which table holds owned vehicles is a property of the framework, so that is
+-- the one thing still worth asking msk_core about. Qbox uses the same
+-- player_vehicles layout as QBCore, verified against qbx_vehicles/vehicles.sql.
+--
+-- The framework detection that used to sit here is gone: msk_core has done it
+-- already, and this file's own copy knew nothing about Qbox.
+local vehicleTables = {
+    ESX    = { table = 'owned_vehicles',  owner = 'owner'     },
+    QBCore = { table = 'player_vehicles', owner = 'citizenid' },
+    Qbox   = { table = 'player_vehicles', owner = 'citizenid' },
+}
 
-	VEHICLE_TABLE_NAME = "owned_vehicles"
-	OWNER_COLUMN_NAME = "owner"
-elseif Config.Framework == 'QBCore' or Config.Framework == 'AUTO' and GetResourceState('qb-core') ~= 'missing' then
-    if not QBCore then 
-        QBCore = exports['qb-core']:GetCoreObject() 
-        Config.Framework = 'QBCore'
-    end
+local vehicleTable = vehicleTables[MSK.Bridge.Framework.Type]
 
-	VEHICLE_TABLE_NAME = "player_vehicles"
-	OWNER_COLUMN_NAME = "citizenid"
-else
-    VEHICLE_TABLE_NAME = ""
-	OWNER_COLUMN_NAME = ""
-end
+VEHICLE_TABLE_NAME = vehicleTable and vehicleTable.table or ''
+OWNER_COLUMN_NAME = vehicleTable and vehicleTable.owner or ''
 
 if Config.EnableLockpick then
     alterDatabase = function()        
@@ -25,28 +21,15 @@ if Config.EnableLockpick then
     end
     alterDatabase()
 
-    if Config.Framework == 'ESX' then
-		ESX.RegisterUsableItem(Config.LockpickSettings.item, function(source)
-			TriggerClientEvent('msk_enginetoggle:toggleLockpick', source)
-		end)
+    -- MSK.RegisterItem covers ESX, QBCore and Qbox in a single call.
+    MSK.RegisterItem(Config.LockpickSettings.item, function(source)
+        TriggerClientEvent('msk_enginetoggle:toggleLockpick', source)
+    end)
 
-        for stage, data in pairs(Config.SafetyStages) do
-            ESX.RegisterUsableItem(data.item, function(source)
-                TriggerClientEvent('msk_enginetoggle:installAlarmStage', source, stage)
-            end)
-        end
-    elseif Config.Framework == 'QBCore' then
-        QBCore.Functions.CreateUseableItem(Config.LockpickSettings.item, function(source)
-            TriggerClientEvent('msk_enginetoggle:toggleLockpick', source)
+    for stage, data in pairs(Config.SafetyStages) do
+        MSK.RegisterItem(data.item, function(source)
+            TriggerClientEvent('msk_enginetoggle:installAlarmStage', source, stage)
         end)
-
-        for stage, data in pairs(Config.SafetyStages) do
-            QBCore.Functions.CreateUseableItem(data.item, function(source)
-                TriggerClientEvent('msk_enginetoggle:installAlarmStage', source, stage)
-            end)
-        end
-    else
-        -- Add your own code here
     end
 end
 
@@ -119,13 +102,9 @@ RegisterNetEvent('msk_enginetoggle:removeLockpickItem', function()
     local src = source
     local Player = GetPlayerFromId(src)
 
-    if Config.Framework == 'ESX' then
-        Player.removeInventoryItem(Config.LockpickSettings.item, 1)
-    elseif Config.Framework == 'QBCore' then
-        Player.Functions.RemoveItem(Config.LockpickSettings.item, 1)
-    else
-        -- Add your own code here
-    end
+    if not Player then return end
+
+    Player.RemoveItem(Config.LockpickSettings.item, 1)
 end)
 
 RegisterNetEvent('msk_enginetoggle:saveAlarmStage', function(plate, stage)
@@ -136,15 +115,7 @@ RegisterNetEvent('msk_enginetoggle:saveAlarmStage', function(plate, stage)
 
     local Player = GetPlayerFromId(playerId)
     if not Player then return end
-	local identifier = nil
-
-	if Config.Framework == 'ESX' then
-        identifier = Player.identifier
-    elseif Config.Framework == 'QBCore' then
-        identifier = Player.PlayerData.citizenid 
-    else
-        -- Add your own code here
-    end
+	local identifier = GetPlayerIdentifier(Player)
 
     local result = MySQL.query.await(('SELECT * FROM %s WHERE %s = @owner AND plate = @plate'):format(VEHICLE_TABLE_NAME, OWNER_COLUMN_NAME), {
 		['@owner'] = identifier,
@@ -167,58 +138,28 @@ end)
 notifyOwner = function(owner, coords)
     local Player = GetPlayerFromIdentifier(owner)
     if not Player then return end
-    local playerId = nil
 
-    if Config.Framework == 'ESX' then
-        playerId = Player.source
-    elseif Config.Framework == 'QBCore' then
-        playerId = Player.PlayerData.source
-    else
-        -- Add your own code here
-    end
-
+    local playerId = Player.source
     if not playerId then return end
     Config.Notification(playerId, Translation[Config.Locale]['stole_vehicle'])
     TriggerClientEvent('msk_enginetoggle:showBlipCoords', playerId, coords)
 end
 
 notifyPolice = function(coords)
-    if Config.Framework == 'ESX' then
-        local xPlayers = ESX.GetExtendedPlayers()
-
-        for k, xPlayer in pairs(xPlayers) do
-            if HasPlayerJob(xPlayer) then
-                Config.Notification(xPlayer.source, Translation[Config.Locale]['stole_vehicle_police'])
-                TriggerClientEvent('msk_enginetoggle:showBlipCoords', xPlayer.source, coords)
-            end
+    -- One list on every framework, and every entry carries .source and .job.
+    for _, Player in pairs(MSK.GetPlayers() or {}) do
+        if HasPlayerJob(Player) then
+            Config.Notification(Player.source, Translation[Config.Locale]['stole_vehicle_police'])
+            TriggerClientEvent('msk_enginetoggle:showBlipCoords', Player.source, coords)
         end
-    elseif Config.Framework == 'QBCore' then
-        local Players = QBCore.Functions.GetQBPlayers()
-
-        for k, Player in pairs(Players) do
-            if HasPlayerJob(Player) then
-                Config.Notification(Player.PlayerData.source, Translation[Config.Locale]['stole_vehicle_police'])
-                TriggerClientEvent('msk_enginetoggle:showBlipCoords', Player.PlayerData.source, coords)
-            end
-        end
-    else
-        -- Add your own code here
     end
 end
 
 sendLiveCoords = function(owner, netId, coords)
     local Player = GetPlayerFromIdentifier(owner)
     if not Player then return end
-    local playerId = nil
 
-    if Config.Framework == 'ESX' then
-        playerId = Player.source
-    elseif Config.Framework == 'QBCore' then
-        playerId = Player.PlayerData.source
-    else
-        -- Add your own code here
-    end
-
+    local playerId = Player.source
     if not playerId then return end
     TriggerClientEvent('msk_enginetoggle:showVehicleBlip', playerId, netId, coords)
 end

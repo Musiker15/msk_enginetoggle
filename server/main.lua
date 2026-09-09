@@ -1,59 +1,25 @@
-if Config.Framework == 'AUTO' then
-	if GetResourceState('es_extended') ~= 'missing' then
-        ESX = exports["es_extended"]:getSharedObject()
-		Config.Framework = 'ESX'
-    elseif GetResourceState('qb-core') ~= 'missing' then
-        QBCore = exports['qb-core']:GetCoreObject()
-		Config.Framework = 'QBCore'
-    end
-elseif Config.Framework == 'ESX' then
-	ESX = exports["es_extended"]:getSharedObject()
-elseif Config.Framework == 'QBCore' then
-	QBCore = exports['qb-core']:GetCoreObject()
-else
-	-- Add your own code here
-end
+-- Framework detection used to sit here, once per file, and each of the helpers
+-- below carried its own ESX and QBCore branch. msk_core 4.0.0 answers all of it
+-- in one shape, so the branches are gone and Qbox works without a line of its
+-- own. Config.Framework is no longer read anywhere in this resource.
+--
+-- The helper names stay, because the rest of the resource calls them.
 
 GetPlayerFromId = function(playerId)
-	local Player = nil
-
-	if Config.Framework == 'ESX' then
-        Player = ESX.GetPlayerFromId(playerId)
-    elseif Config.Framework == 'QBCore' then
-        Player = QBCore.Functions.GetPlayer(playerId)
-    else
-        -- Add your own code here
-    end
-
-	return Player
+	return MSK.GetPlayer(playerId)
 end
 
 GetPlayerFromIdentifier = function(identifier)
-	local Player = nil
+	return MSK.GetPlayerFromIdentifier(identifier)
+end
 
-	if Config.Framework == 'ESX' then
-        Player = ESX.GetPlayerFromIdentifier(identifier)
-    elseif Config.Framework == 'QBCore' then
-        Player = QBCore.Functions.GetPlayerByCitizenId(identifier)
-    else
-        -- Add your own code here
-    end
-
-	return Player
+-- ESX identifier, QBCore and Qbox citizenid: one field on every framework.
+GetPlayerIdentifier = function(Player)
+	return Player and Player.identifier or nil
 end
 
 GetPlayerJob = function(Player)
-    local job = 'unemployed'
-
-    if Config.Framework == 'ESX' then
-        job = Player.job.name
-    elseif Config.Framework == 'QBCore' then
-        job = Player.PlayerData.job.name
-    else
-        -- Add your own code here
-    end
-
-    return job
+	return Player and Player.job and Player.job.name or 'unemployed'
 end
 
 if Config.AdminCommand.enable then
@@ -111,15 +77,7 @@ RegisterNetEvent('msk_enginetoggle:enteredVehicle', function(plate, seat, netId,
 
 	local Player = GetPlayerFromId(src)
 	if not Player then return end
-	local identifier = nil
-
-	if Config.Framework == 'ESX' then
-        identifier = Player.identifier
-    elseif Config.Framework == 'QBCore' then
-        identifier = Player.PlayerData.citizenid
-    else
-        -- Add your own code here
-    end
+	local identifier = GetPlayerIdentifier(Player)
 
 	local result = MySQL.query.await(('SELECT %s FROM %s WHERE %s = @owner AND plate = @plate'):format(OWNER_COLUMN_NAME, VEHICLE_TABLE_NAME, OWNER_COLUMN_NAME), {
 		['@owner'] = identifier,
@@ -135,15 +93,7 @@ end)
 MSK.Register('msk_enginetoggle:getInventory', function(source, inv)
 	if inv ~= 'core_inventory' then return {} end
 	local Player = GetPlayerFromId(source)
-	local identifier = nil
-
-	if Config.Framework == 'ESX' then
-        identifier = Player.identifier
-    elseif Config.Framework == 'QBCore' then
-        identifier = Player.PlayerData.citizenid 
-    else
-        -- Add your own code here
-    end
+	local identifier = GetPlayerIdentifier(Player)
 
 	local invName = ('content-%s'):format(identifier):gsub(':', '')
 	return exports['core_inventory']:getInventory(invName)

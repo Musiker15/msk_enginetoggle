@@ -4,7 +4,11 @@ Config.Locale = 'de'
 Config.Debug = false
 Config.VersionChecker = true
 ----------------------------------------------------------------
--- Supported Frameworks: AUTO, ESX, QBCore
+-- No longer used. msk_core detects the framework (ESX, QBCore, Qbox or
+-- STANDALONE) and this resource asks msk_core about it, so changing the value
+-- here has no effect. Pin it in msk_core's config.lua instead.
+--
+-- The line is kept so that an existing config file does not break.
 Config.Framework = 'AUTO'
 ----------------------------------------------------------------
 -- !!! This function is clientside AND serverside !!!

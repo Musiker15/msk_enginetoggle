@@ -1,18 +1,6 @@
-if Config.Framework == 'AUTO' then
-	if GetResourceState('es_extended') ~= 'missing' then
-        ESX = exports["es_extended"]:getSharedObject()
-		Config.Framework = 'ESX'
-    elseif GetResourceState('qb-core') ~= 'missing' then
-        QBCore = exports['qb-core']:GetCoreObject()
-		Config.Framework = 'QBCore'
-    end
-elseif Config.Framework == 'ESX' then
-	ESX = exports["es_extended"]:getSharedObject()
-elseif Config.Framework == 'QBCore' then
-	QBCore = exports['qb-core']:GetCoreObject()
-else
-	-- Add your own code here
-end
+-- The framework detection that used to sit here is gone. msk_core has already
+-- done it when this file loads, and nothing on the client side of this resource
+-- reads ESX or QBCore directly any more. It also knew nothing about Qbox.
 
 currentVehicle = {}
 isInVehicle, isEnteringVehicle, disabledDrive = false, false, false
