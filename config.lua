@@ -14,9 +14,9 @@ Config.Framework = 'AUTO'
 -- !!! This function is clientside AND serverside !!!
 Config.Notification = function(source, message, typ)
     if IsDuplicityVersion() then -- serverside
-        MSK.Notification(source, 'Engine', message, typ)
+        MSK.Notification(source, { title = 'Engine', message = message, type = typ })
     else -- clientside
-        MSK.Notification('Engine', message, typ)
+        MSK.Notification({ title = 'Engine', message = message, type = typ })
     end
 end
 ----------------------------------------------------------------
@@ -95,7 +95,11 @@ Config.Blacklist = {
 Config.EnableLockpick = true -- Set false if you want to deactivate this feature
 
 Config.progressBar = function(time, message)
-    MSK.Progress.Start(time, message)
+    -- The table form waits until the bar has run out. The callers wait on
+    -- their own, so the bar runs in its own thread.
+    CreateThread(function()
+        MSK.Progress.Start({ duration = time, text = message })
+    end)
 end
 
 Config.LockpickHotkey = {
